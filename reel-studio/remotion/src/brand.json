@@ -1,0 +1,8 @@
+{
+  "_note": "Placeholder only. Step 4 of SKILL.md always replaces this with the person's own brand.",
+  "fonts": { "heading": "Inter", "body": "Inter" },
+  "colors": { "bg": "#000000", "text": "#FFFFFF", "accent": "#FFFFFF", "card": "#FFFFFF", "cardText": "#000000" },
+  "card": { "radius": 16, "shadow": "soft", "style": "solid" },
+  "text": { "case": "normal", "lead": "plain" },
+  "captions": { "style": "none", "position": "bottom", "size": 64 }
+}

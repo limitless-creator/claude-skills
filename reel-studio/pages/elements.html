@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reel Studio · Elements</title>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --text:#1b1b1a; --muted:#6b6a66; --line:#e4e2dc; --ok:#1f7a4d; --chg:#b26a00; --drop:#b3261e; --pick:#2b59c3; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#141414; --card:#1e1e1d; --text:#f1f0ec; --muted:#a3a29d; --line:#333; --ok:#4cc38a; --chg:#f0a83a; --drop:#ff7b72; --pick:#7aa2ff; } }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:16px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { position:sticky; top:0; z-index:2; background:var(--bg); border-bottom:1px solid var(--line); padding:14px 16px; }
+  .wrap { max-width:1000px; margin:0 auto; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .intro { color:var(--muted); margin:0; max-width:75ch; }
+  .bar { display:flex; gap:12px; align-items:center; margin-top:10px; flex-wrap:wrap; }
+  .count, .saved { color:var(--muted); font-size:14px; }
+  main { padding:16px; display:flex; flex-direction:column; gap:16px; }
+  .beat { background:var(--card); border:2px solid var(--line); border-radius:16px; display:grid; grid-template-columns:200px 1fr; gap:18px; padding:14px; }
+  .beat.approved { border-color:var(--ok); } .beat.change { border-color:var(--chg); } .beat.dropped { border-color:var(--drop); opacity:.6; }
+  .beat img { width:200px; aspect-ratio:9/16; object-fit:cover; border-radius:10px; background:#000; display:block; cursor:zoom-in; }
+  .noimg { width:200px; aspect-ratio:9/16; border-radius:10px; background:var(--line); display:grid; place-items:center; color:var(--muted); font-size:13px; text-align:center; padding:10px; }
+  .n { font-size:13px; color:var(--muted); }
+  .line { font-size:19px; font-weight:600; margin:2px 0 10px; }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:4px 12px; margin:0 0 12px; font-size:15px; }
+  dt { color:var(--muted); } dd { margin:0; }
+  .opts { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px; }
+  .opt { text-align:left; flex:1 1 200px; }
+  .opt small { display:block; color:var(--muted); font-weight:400; }
+  .opt.on { border-color:var(--pick); outline:2px solid var(--pick); }
+  .btns { display:flex; gap:8px; flex-wrap:wrap; }
+  button { font:inherit; border-radius:10px; border:1px solid var(--line); background:transparent; color:var(--text); padding:8px 14px; cursor:pointer; font-weight:600; }
+  button.on.a { background:var(--ok); border-color:var(--ok); color:#fff; }
+  button.on.c { background:var(--chg); border-color:var(--chg); color:#fff; }
+  button.on.d { background:var(--drop); border-color:var(--drop); color:#fff; }
+  button.done { background:var(--text); color:var(--bg); border-color:var(--text); padding:10px 18px; }
+  textarea { font:inherit; font-size:15px; width:100%; min-height:64px; margin-top:10px; border:1px solid var(--line); border-radius:10px; padding:8px; background:transparent; color:var(--text); }
+  .msg { padding:12px 14px; border-radius:12px; background:var(--card); border:1px solid var(--line); }
+  dialog { border:0; padding:0; background:transparent; } dialog img { max-width:96vw; max-height:92vh; border-radius:10px; display:block; }
+  dialog::backdrop { background:rgba(0,0,0,.8); }
+  @media (max-width:640px) { .beat { grid-template-columns:1fr; } .beat img, .noimg { width:100%; max-width:320px; margin:0 auto; } }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <h1 id="title">Loading…</h1>
+  <p class="intro">Each card is one moment of your reel: the picture shows how it will look. Approve it, ask for a change (say what), or drop it. Nothing is built until you've approved it.</p>
+  <div class="bar"><span class="count" id="count"></span><span class="saved" id="saved"></span><span style="flex:1"></span><button class="done" id="done">I'm done</button></div>
+</div></header>
+<main class="wrap">
+  <div class="msg" id="finished" hidden>Saved. Go back to Claude and say <b>done</b>.</div>
+  <div class="msg" id="todo" hidden></div>
+  <div id="list" style="display:contents"></div>
+</main>
+<dialog id="zoom"><img alt=""></dialog>
+<script>
+const name = new URLSearchParams(location.search).get("name") || "elements";
+let data, answers = { beats: {} }, timer;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+async function load() {
+  const r = await fetch(`/api/data/${name}`);
+  if (!r.ok) { $("title").textContent = "Nothing to show yet. Ask Claude to prepare this page."; return; }
+  data = await r.json();
+  const saved = await (await fetch(`/api/answers/${name}`)).json();
+  if (saved.beats) answers = saved;
+  $("title").textContent = data.title || "Your reel, moment by moment";
+  render();
+}
+
+function render() {
+  $("list").innerHTML = "";
+  for (const b of data.beats) {
+    const a = answers.beats[b.id] || {};
+    const el = document.createElement("section");
+    el.className = "beat " + (a.status || "");
+    const rows = [["When", b.t != null ? `${Number(b.t).toFixed(1)} s` : ""], ["Framing", b.framing_label], ["On screen", b.element],
+                  ["Text", b.text], ["Picture from", b.source], ["Why", b.why]].filter(([, v]) => v);
+    el.innerHTML = `
+      ${b.preview ? `<img alt="Preview of moment ${esc(b.n)}" src="/${esc(b.preview.replace(/^\/+/, ""))}">` : `<div class="noimg">No preview yet</div>`}
+      <div>
+        <div class="n">Moment ${esc(b.n)}</div>
+        <div class="line">“${esc(b.line)}”</div>
+        <dl>${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
+        ${b.options?.length ? `<div class="opts">${b.options.map((o, i) => `<button class="opt ${a.pick === o.label ? "on" : ""}" data-i="${i}">${esc(o.label)}<small>${esc(o.desc)}</small></button>`).join("")}</div>` : ""}
+        <div class="btns">
+          <button class="a ${a.status === "approved" ? "on" : ""}" data-s="approved">Approve</button>
+          <button class="c ${a.status === "change" ? "on" : ""}" data-s="change">Ask for a change</button>
+          <button class="d ${a.status === "dropped" ? "on" : ""}" data-s="dropped">Drop</button>
+        </div>
+        ${a.status === "change" ? `<textarea placeholder="What should change? Be as specific as you like."></textarea>` : ""}
+      </div>`;
+    const img = el.querySelector("img");
+    if (img) img.onclick = () => { $("zoom").querySelector("img").src = img.src; $("zoom").showModal(); };
+    el.querySelectorAll("[data-s]").forEach((btn) => btn.onclick = () => { set(b.id, { status: a.status === btn.dataset.s ? "" : btn.dataset.s }); render(); });
+    el.querySelectorAll(".opt").forEach((btn) => btn.onclick = () => { const o = b.options[btn.dataset.i]; set(b.id, { pick: a.pick === o.label ? "" : o.label }); render(); });
+    const ta = el.querySelector("textarea");
+    if (ta) { ta.value = a.note || ""; ta.oninput = () => set(b.id, { note: ta.value }); }
+    $("list").appendChild(el);
+  }
+  const n = data.beats.filter((b) => (answers.beats[b.id] || {}).status).length;
+  $("count").textContent = `${n} of ${data.beats.length} decided`;
+}
+
+function set(id, patch) {
+  answers.beats[id] = { ...(answers.beats[id] || {}), ...patch };
+  answers.done = false;
+  $("finished").hidden = true;
+  clearTimeout(timer);
+  timer = setTimeout(save, 400);
+}
+async function save() {
+  $("saved").textContent = "Saving…";
+  const r = await fetch(`/api/answers/${name}`, { method: "POST", body: JSON.stringify(answers) });
+  $("saved").textContent = r.ok ? "Saved" : "Could not save. Is Claude's helper still running?";
+}
+$("done").onclick = async () => {
+  const open = data.beats.filter((b) => !(answers.beats[b.id] || {}).status);
+  const noNote = data.beats.filter((b) => (answers.beats[b.id] || {}).status === "change" && !(answers.beats[b.id].note || "").trim());
+  if (open.length || noNote.length) {
+    $("todo").hidden = false;
+    $("todo").textContent = (open.length ? `Still undecided: moment ${open.map((b) => b.n).join(", ")}. ` : "") +
+      (noNote.length ? `Say what to change for moment ${noNote.map((b) => b.n).join(", ")}.` : "");
+    scrollTo(0, 0); return;
+  }
+  $("todo").hidden = true; clearTimeout(timer); answers.done = true; await save(); $("finished").hidden = false; scrollTo(0, 0);
+};
+$("zoom").onclick = () => $("zoom").close();
+load();
+</script>
+</body>
+</html>

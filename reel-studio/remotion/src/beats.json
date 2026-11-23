@@ -1,0 +1,8 @@
+{
+  "duration": 10,
+  "beats": [
+    { "id": "hook", "t0": 0, "framing": "wide", "elements": [{ "type": "text", "at": 0.2, "lead": "this is", "key": "the hook", "pos": "top" }] },
+    { "id": "p1", "t0": 3, "framing": "left", "cut": "hard", "elements": [{ "type": "card", "at": 3.2, "title": "Point one", "body": "Something beside the person" }] },
+    { "id": "p2", "t0": 6, "framing": "right", "cut": "ease", "elements": [{ "type": "number", "at": 6.2, "value": 42, "suffix": "%", "label": "a number" }] }
+  ]
+}
